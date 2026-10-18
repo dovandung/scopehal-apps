@@ -7,17 +7,18 @@ Native, in-process ngscopeclient driver for every device supported by
 sockets: ngscopeclient loads the plugin, the plugin links libsigrok4DSL and
 talks to the USB device directly.
 
-| Driver | Hardware |
-|---|---|
-| `DSLogic` / `DSCope` | DreamSourceLab |
-| `ch32` | CH32H417 logic analyzer |
-| `slogic16u3` | Sipeed SLogic Combo 8 / 16U3 / 32U3 |
-| `pxlogic` | PXLogic32U3 |
-| `atk-logic` | Alientek ATK-Logic (DL16 ...) |
-| `fx2lafw` | nanoDLA / Cypress FX2 |
-| `cypress-fx3` | Cypress FX3 |
-| `hsdaoh-la` | RP2350 + MS2130 (when `libhsdaoh` is found) |
-| `virtual-demo` | libsigrok4DSL's demo device, no hardware |
+| Hardware | Driver name | Device name shown | Path to use |
+|---|---|---|---|
+| DreamSourceLab DSLogic | `DSLogic` | DSLogic model, e.g. `DSLogic U3Pro16` | `dslogic` |
+| DreamSourceLab DSCope | `DSCope` | DSCope model, e.g. `DSCope U3P100` | `dscope` |
+| CH32H417 logic analyzer | `ch32-logic` | `CH32H417 LA USB3.0` / `USB2.0` | `ch32` |
+| Sipeed SLogic Combo 8 / 16U3 / 32U3 | `slogic-16u3` | `SLogic Combo 8`, `SLogic16U3`, `SLogic32U3` | `slogic-16u3` |
+| PXLogic32U3 | `pxlogic` | `PX-Logic U3 channel 32` (and variants) | `px-logic` |
+| Alientek ATK-Logic (DL16 ...) | `atk-logic` | `ATK-Logic` | `atk` |
+| nanoDLA / Cypress FX2 (fx2lafw) | `fx2lafw` | `nanoDLA`, `FX2 LA (16ch)` | `fx2lafw` |
+| Cypress FX3 | `cypress-fx3` | `FX3` | `fx3` |
+| RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8 (RP2350 + MS2130)` | `hsdaoh-la` |
+| Demo device (no hardware) | `virtual-demo` | `Demo Device` | `demo` |
 
 Logic analyzers appear as digital channels; DSCope in DSO mode as analog
 channels.
@@ -83,8 +84,11 @@ path:
 <device>[,res=<firmware dir>][,mode=logic|dso][,maxdepth=<samples>]
 ```
 
-- `<device>`: an index (`0`), part of the device name (`slogic`, `DSLogic`),
-  or a driver name (`fx2lafw`). Empty picks the first USB device, or the demo
+- `<device>`: matched case-insensitively against, in order, a device index
+  (`0`), part of the device name (`fx3`, `ch32`), or the exact driver name
+  (`cypress-fx3`). See the "Path to use" column above. A name match wins over a
+  driver match, so prefer the driver name when one name contains another
+  (`slogic` would also match "DSLogic"). Empty picks the first USB device, or the demo
   device if none is connected.
 - `res=`: firmware/bitstream directory. Default: `$DSVIEW_RES_DIR`, then
   `~/.local/share/DSView/res`, `/usr/local/share/DSView/res`,
@@ -95,7 +99,7 @@ path:
 - `maxdepth=`: cap the memory depths offered (default: the driver's hardware
   depth, at most 100 M samples).
 
-Examples: `slogic`, `fx2lafw,res=/opt/ALL-LOGIC/res`, `demo,mode=dso`.
+Examples: `fx3`, `slogic-16u3`, `fx2lafw,res=/opt/ALL-LOGIC/res`, `demo,mode=dso`.
 
 The path is saved with the session, so reopening a session reconnects to the
 same device.
@@ -149,7 +153,7 @@ cmake -B build -DALLLOGIC_DIR=... -DLIBSIGROK4DSL_PLUGIN_TESTS=ON
 cmake --build build --target libsigrok4dsl-engine-test
 ./build/plugins/libsigrok4dsl/libsigrok4dsl-engine-test             # logic
 ./build/plugins/libsigrok4dsl/libsigrok4dsl-engine-test --mode dso  # DSO
-./build/plugins/libsigrok4dsl/libsigrok4dsl-engine-test slogic      # real device
+./build/plugins/libsigrok4dsl/libsigrok4dsl-engine-test fx3         # real device
 ```
 
 It checks continuous and single captures, reconfiguration while running,
