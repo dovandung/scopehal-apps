@@ -235,6 +235,11 @@ vector<DSLSession::DeviceEntry> DSLSession::ListDevices()
  */
 bool DSLSession::Open(const string& selector, int requestedMode, string& error)
 {
+	return Open(selector, requestedMode, error, ChannelModeRequest());
+}
+
+bool DSLSession::Open(const string& selector, int requestedMode, string& error, const ChannelModeRequest& channelMode)
+{
 	lock_guard<recursive_mutex> lock(m_devMutex);
 
 	if(m_open)
@@ -314,6 +319,16 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error)
 			LogWarning("libsigrok4DSL: device refused mode %d\n", requestedMode);
 	}
 
+	//Channel mode before reading the channel list: a mode can change which channels exist
+	m_reconnectNeeded = false;
+	if(channelMode.channels > 0 || channelMode.id >= 0)
+	{
+		//A mode the device does not have is not fatal: keep the current one
+		string why;
+		if(!ApplyChannelMode(channelMode, why))
+			LogWarning("libsigrok4DSL: %s\n", why.c_str());
+	}
+
 	int mode = ds_get_actived_device_mode();
 	if(mode == LOGIC)
 		m_isDSO = false;
@@ -361,8 +376,10 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error)
 	m_trigEdge = EDGE_RISING;
 	SetTriggerPosition(10);
 
-	LogNotice("libsigrok4DSL: opened \"%s\" (driver %s, %zu channels, %s)\n",
-		m_devName.c_str(), m_driverName.c_str(), m_channels.size(), m_isDSO ? "DSO" : "logic");
+	string modeName = GetChannelModeName();
+	LogNotice("libsigrok4DSL: opened \"%s\" (driver %s, %zu channels, %s%s%s)\n",
+		m_devName.c_str(), m_driverName.c_str(), m_channels.size(), m_isDSO ? "DSO" : "logic",
+		modeName.empty() ? "" : ", ", modeName.c_str());
 
 	m_open = true;
 	m_quit = false;
@@ -406,6 +423,145 @@ string DSLSession::GetChannelName(size_t i) const
 	if(ch->name && ch->name[0])
 		return ch->name;
 	return to_string(i);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Channel modes
+
+namespace
+{
+
+//"Use Channels 0~15 (Max 100MHz)" -> 16, "Use 16 Channels (Max 20MHz)" -> 16, else -1
+int ChannelsFromModeName(const string& name)
+{
+	auto tilde = name.find("0~");
+	if(tilde != string::npos)
+	{
+		size_t i = tilde + 2;
+		int n = 0;
+		bool digits = false;
+		while(i < name.size() && isdigit((unsigned char)name[i]))
+		{
+			n = n*10 + (name[i] - '0');
+			digits = true;
+			i++;
+		}
+		if(digits)
+			return n + 1;
+	}
+
+	string lower = Lower(name);
+	auto ch = lower.find(" channel");
+	if(ch != string::npos)
+	{
+		size_t end = ch;
+		size_t start = end;
+		while(start > 0 && isdigit((unsigned char)lower[start-1]))
+			start--;
+		if(start < end)
+			return stoi(lower.substr(start, end - start));
+	}
+	return -1;
+}
+
+}
+
+vector<DSLSession::ChannelMode> DSLSession::GetChannelModes()
+{
+	lock_guard<recursive_mutex> lock(m_devMutex);
+	vector<ChannelMode> ret;
+
+	//Drivers return a pointer to a {id, name} array ending with a NULL name
+	GVariant* v = nullptr;
+	if(ds_get_actived_device_config_list(nullptr, SR_CONF_CHANNEL_MODE, &v) != SR_OK || !v)
+		return ret;
+	if(g_variant_is_of_type(v, G_VARIANT_TYPE_UINT64))
+	{
+		auto items = (const sr_list_item*)(uintptr_t)g_variant_get_uint64(v);
+		for(int i=0; items && items[i].name && i < 64; i++)
+			ret.push_back({items[i].id, items[i].name, ChannelsFromModeName(items[i].name)});
+	}
+	g_variant_unref(v);
+	return ret;
+}
+
+int DSLSession::GetChannelMode()
+{
+	lock_guard<recursive_mutex> lock(m_devMutex);
+	return GetConfig<int16_t>(nullptr, SR_CONF_CHANNEL_MODE).value_or(-1);
+}
+
+string DSLSession::GetChannelModeName()
+{
+	int cur = GetChannelMode();
+	for(auto& m : GetChannelModes())
+	{
+		if(m.id == cur)
+			return m.name;
+	}
+	return "";
+}
+
+/**
+	@brief Selects a channel mode by channel count or id. Called from Open() with the device active.
+ */
+bool DSLSession::ApplyChannelMode(const ChannelModeRequest& req, string& error)
+{
+	auto modes = GetChannelModes();
+	string available;
+	for(auto& m : modes)
+		available += "\n  " + to_string(m.id) + ": " + m.name;
+
+	if(modes.empty())
+	{
+		error = "device \"" + m_devName + "\" has no channel modes";
+		return false;
+	}
+
+	const ChannelMode* pick = nullptr;
+	for(auto& m : modes)
+	{
+		if( (req.id >= 0 && m.id == req.id) ||
+			(req.id < 0 && req.channels > 0 && m.channels == req.channels) )
+		{
+			pick = &m;
+			break;
+		}
+	}
+	if(!pick)
+	{
+		if(req.id >= 0)
+			error = "no channel mode " + to_string(req.id) + " on \"" + m_devName + "\"; modes:" + available;
+		else
+			error = "no " + to_string(req.channels) + " channel mode on \"" + m_devName + "\"; modes:" + available;
+		return false;
+	}
+
+	if(GetChannelMode() == pick->id)
+	{
+		LogDebug("libsigrok4DSL: channel mode already \"%s\"\n", pick->name.c_str());
+		return true;
+	}
+
+	ds_reset_last_error();
+	if(!SetConfig<int16_t>(nullptr, SR_CONF_CHANNEL_MODE, (int16_t)pick->id))
+	{
+		error = "device refused channel mode \"" + pick->name + "\"";
+		return false;
+	}
+
+	//FX3 saves the choice but can only load the matching firmware at the next plug-in
+	if(ds_get_last_error() == SR_ERR_DEVICE_FIRMWARE_VERSION_LOW)
+	{
+		m_reconnectNeeded = true;
+		LogWarning("libsigrok4DSL: \"%s\" set to \"%s\". Unplug the device, plug it in again and "
+			"reconnect the instrument to use it; until then it keeps its current channels.\n",
+			m_devName.c_str(), pick->name.c_str());
+		ds_reset_last_error();
+	}
+	else
+		LogNotice("libsigrok4DSL: channel mode \"%s\"\n", pick->name.c_str());
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

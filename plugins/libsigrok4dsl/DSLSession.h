@@ -100,9 +100,31 @@ public:
 		std::string name;
 	};
 
+	/**
+		@brief A channel mode offered by the driver (SR_CONF_CHANNEL_MODE)
+
+		e.g. FX3 "Use Channels 0~15 (Max 100MHz)", SLogic "Use Channels 0~3 (Max 800MHz)",
+		DSLogic "Use 16 Channels (Max 20MHz)"
+	 */
+	struct ChannelMode
+	{
+		int id;
+		std::string name;
+		int channels;		//parsed from the name, -1 if it does not say
+	};
+
+	///@brief What to select when opening: a channel count, or a raw mode id (-1 = leave as is)
+	struct ChannelModeRequest
+	{
+		int channels = -1;
+		int id = -1;
+	};
+
 	//Library / device lifetime
 	bool InitLibrary(const std::string& resourceDir, int logLevel = 1);
 	std::vector<DeviceEntry> ListDevices();
+	bool Open(const std::string& selector, int requestedMode, std::string& error,
+		const ChannelModeRequest& channelMode);
 	bool Open(const std::string& selector, int requestedMode, std::string& error);
 	void Close();
 	bool IsOpen() const
@@ -118,6 +140,19 @@ public:
 	size_t GetChannelCount() const
 	{ return m_channels.size(); }
 	std::string GetChannelName(size_t i) const;
+
+	//Channel modes
+	std::vector<ChannelMode> GetChannelModes();
+	int GetChannelMode();
+	std::string GetChannelModeName();
+
+	/**
+		@brief True if a channel mode was chosen that needs the device unplugged and plugged in
+		again (FX3: the firmware for the mode is loaded at plug-in). Until then the device keeps
+		running in its previous mode.
+	 */
+	bool IsReconnectNeeded() const
+	{ return m_reconnectNeeded; }
 
 	//Timebase
 	std::vector<uint64_t> GetSampleRates();
@@ -197,6 +232,7 @@ protected:
 	~DSLSession();
 
 	void AcquisitionThread();
+	bool ApplyChannelMode(const ChannelModeRequest& req, std::string& error);
 	void AbortRunningCapture();
 	void UpdateLogicTrigger();
 	void InitCapture(DSLCapture& c);
@@ -210,6 +246,7 @@ protected:
 	std::string m_devName;
 	std::string m_driverName;
 	bool m_isDSO = false;
+	bool m_reconnectNeeded = false;
 	std::vector<void*> m_channels;		//struct sr_channel*
 	std::vector<uint64_t> m_vdivOptions;
 	int m_numDivs = 10;

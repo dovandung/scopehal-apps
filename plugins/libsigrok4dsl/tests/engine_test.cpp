@@ -283,6 +283,58 @@ static void TestDSO(DSLSession& s)
 	CHECK(single && !s.IsArmed() && s.PopCapture() == nullptr, "single frame, then disarmed");
 }
 
+static void TestChannelModes(DSLSession& s, const string& selector, int mode)
+{
+	printf("Channel modes on \"%s\"\n", selector.c_str());
+	string err;
+
+	//List
+	CHECK(s.Open(selector, mode, err), "open");
+	auto modes = s.GetChannelModes();
+	for(auto& m : modes)
+		printf("       %d: %s  -> %d channels\n", m.id, m.name.c_str(), m.channels);
+	bool parsed = !modes.empty();
+	for(auto& m : modes)
+		parsed &= m.channels > 0;
+	CHECK(parsed, "%zu modes, channel count parsed from every name", modes.size());
+	size_t defaultChannels = s.GetChannelCount();
+	s.Close();
+	if(modes.size() < 2)
+		return;
+
+	//channels=N picks the mode with that many channels, before the channel list is read
+	auto& small = modes.back();
+	DSLSession::ChannelModeRequest req;
+	req.channels = small.channels;
+	CHECK(s.Open(selector, mode, err, req), "open with channels=%d", small.channels);
+	CHECK(s.GetChannelMode() == small.id && s.GetChannelCount() == (size_t)small.channels,
+		"mode \"%s\", %zu channels", s.GetChannelModeName().c_str(), s.GetChannelCount());
+	s.SetSampleDepth(10000);
+	s.Start(true);
+	shared_ptr<DSLCapture> c;
+	bool got = WaitCapture(s, c);
+	CHECK(got && c->chans.size() == (size_t)small.channels, "capture has %zu channels", got ? c->chans.size() : 0);
+	s.Close();
+
+	//A count the device does not offer: warning, still opens in a valid mode
+	req.channels = 99;
+	bool opened = s.Open(selector, mode, err, req);
+	bool valid = false;
+	for(auto& m : modes)
+		valid |= opened && m.id == s.GetChannelMode() && (size_t)m.channels == s.GetChannelCount();
+	CHECK(valid, "channels=99 rejected with a warning, device still opens (\"%s\")", s.GetChannelModeName().c_str());
+	s.Close();
+
+	//chmode=ID selects by raw id: back to the first mode
+	DSLSession::ChannelModeRequest byId;
+	byId.id = modes.front().id;
+	CHECK(s.Open(selector, mode, err, byId), "open with chmode=%d", byId.id);
+	CHECK(s.GetChannelMode() == modes.front().id && s.GetChannelCount() == defaultChannels,
+		"mode \"%s\", %zu channels", s.GetChannelModeName().c_str(), s.GetChannelCount());
+	CHECK(!s.IsReconnectNeeded(), "no reconnect needed (demo switches in place)");
+	s.Close();
+}
+
 int main(int argc, char* argv[])
 {
 	string selector = "demo";
@@ -326,7 +378,11 @@ int main(int argc, char* argv[])
 	s.Close();
 	string err2;
 	CHECK(s.Open(selector, mode, err2), "reopen after close");
+	bool dso = s.IsDSO();
 	s.Close();
+
+	if(!dso)
+		TestChannelModes(s, selector, mode);
 
 	printf("%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
 	return g_failures ? 1 : 0;

@@ -27,6 +27,7 @@ class DSLSession;
 	takes optional settings:
 
 		<device>[,res=<firmware dir>][,mode=logic|dso][,maxdepth=<samples>]
+				[,channels=<count>][,chmode=<mode id>]
 
 	<device> is an index, part of the device name, or a libsigrok4DSL driver name ("slogic",
 	"fx2lafw", "0", ...). Empty means the first USB device, else the demo device.
@@ -125,6 +126,8 @@ protected:
 	std::string m_resDir;
 	int m_requestedMode;
 	uint64_t m_maxDepth;
+	int m_requestedChannels;
+	int m_requestedChannelModeId;
 
 	///@brief Femtoseconds from capture start to trigger
 	int64_t m_triggerOffset;

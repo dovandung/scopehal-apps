@@ -34,6 +34,8 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 	, m_dso(false)
 	, m_requestedMode(-1)
 	, m_maxDepth(0)
+	, m_requestedChannels(-1)
+	, m_requestedChannelModeId(-1)
 	, m_triggerOffset(0)
 	, m_threshold(0)
 	, m_hasThreshold(false)
@@ -48,7 +50,10 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 		return;
 
 	string err;
-	if(!m_session.Open(m_selector, m_requestedMode, err))
+	DSLSession::ChannelModeRequest chmode;
+	chmode.channels = m_requestedChannels;
+	chmode.id = m_requestedChannelModeId;
+	if(!m_session.Open(m_selector, m_requestedMode, err, chmode))
 	{
 		LogError("libsigrok4DSL: %s\n", err.c_str());
 		return;
@@ -59,6 +64,8 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 		m_session.SetMaxDepth(m_maxDepth);
 
 	m_model = m_session.GetDeviceName();
+	if(m_session.IsReconnectNeeded())
+		m_model += " (replug to apply channel mode)";
 	m_serial = m_session.GetDriverName();
 
 	//Create channels. Channel index = libsigrok4DSL channel index.
@@ -116,7 +123,7 @@ LibSigrok4DSLOscilloscope::~LibSigrok4DSLOscilloscope()
 }
 
 /**
-	@brief Parses "<device>[,res=DIR][,mode=logic|dso][,maxdepth=N]"
+	@brief Parses "<device>[,res=DIR][,mode=logic|dso][,maxdepth=N][,channels=N][,chmode=ID]"
  */
 void LibSigrok4DSLOscilloscope::ParseConnectionString(const string& path)
 {
@@ -158,6 +165,10 @@ void LibSigrok4DSLOscilloscope::ParseConnectionString(const string& path)
 			m_requestedMode = (val == "dso") ? 1 : (val == "logic") ? 0 : -1;	//libsigrok4DSL LOGIC=0, DSO=1
 		else if(key == "maxdepth")
 			m_maxDepth = stoull(val);
+		else if(key == "channels")
+			m_requestedChannels = atoi(val.c_str());
+		else if(key == "chmode")
+			m_requestedChannelModeId = atoi(val.c_str());
 		else
 			LogWarning("libsigrok4DSL: unknown option \"%s\"\n", key.c_str());
 	}
