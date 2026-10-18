@@ -77,3 +77,8 @@ target_include_directories(sigrok4DSL PUBLIC
 	${HSDAOH_INCLUDE_DIRS})
 target_link_directories(sigrok4DSL PUBLIC ${SR_DEPS_LIBRARY_DIRS} ${HSDAOH_LIBRARY_DIRS})
 target_link_libraries(sigrok4DSL PUBLIC ${SR_DEPS_LIBRARIES} ${HSDAOH_LIBRARIES} pthread m)
+if(WIN32)
+	# SetupAPI (COM port lookup in hsdaoh-la / CH32 IAP) and winmm (timer precision), as ALL-LOGIC links.
+	# Attached here so they follow libsigrok4DSL.a on MinGW's single-pass link line.
+	target_link_libraries(sigrok4DSL PUBLIC setupapi winmm)
+endif()

@@ -50,7 +50,6 @@ if(TARGET scopehal)
 		# scopehal loads <exe dir>\plugins\*.dll. Only PluginInit is exported (__declspec).
 		set_target_properties(scopehal-libsigrok4dsl PROPERTIES
 			LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/ngscopeclient/plugins")
-		target_link_libraries(scopehal-libsigrok4dsl PRIVATE setupapi winmm)
 		install(TARGETS scopehal-libsigrok4dsl LIBRARY DESTINATION bin/plugins RUNTIME DESTINATION bin/plugins)
 		install(DIRECTORY "${ALLLOGIC_DIR}/DSView/res" DESTINATION bin)
 	else()
@@ -98,9 +97,6 @@ if(LIBSIGROK4DSL_PLUGIN_TESTS)
 			RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/ngscopeclient")
 	endif()
 	target_link_libraries(libsigrok4dsl-engine-test PRIVATE dslsession log Threads::Threads)
-	if(WIN32)
-		target_link_libraries(libsigrok4dsl-engine-test PRIVATE setupapi winmm)
-	endif()
 
 	# Plugin inside libscopehal, the way ngscopeclient uses it (needs a Vulkan device, e.g. lavapipe).
 	# Placed next to ngscopeclient so InitializePlugins() finds the plugin where it really lives.
