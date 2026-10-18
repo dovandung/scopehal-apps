@@ -314,6 +314,13 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/lib/log")
 add_subdirectory("${PROJECT_SOURCE_DIR}/src/ngscopeclient")
 add_subdirectory("${PROJECT_SOURCE_DIR}/src/nativefiledialog-extended")
 
+# Optional plugin: native driver for libsigrok4DSL devices (DSView / ALL-LOGIC logic analyzers).
+# Point ALLLOGIC_DIR at an ALL-LOGIC or DSView source checkout to build it.
+set(ALLLOGIC_DIR "" CACHE PATH "ALL-LOGIC or DSView source tree; builds the libsigrok4DSL driver plugin")
+if(ALLLOGIC_DIR AND NOT WIN32)
+	add_subdirectory("${PROJECT_SOURCE_DIR}/plugins/libsigrok4dsl")
+endif()
+
 add_subdirectory(devdoc)
 
 # Unit tests

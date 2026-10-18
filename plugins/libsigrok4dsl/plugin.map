@@ -1,0 +1,9 @@
+/* Export only the plugin entry point. Everything else (libsigrok4DSL's ds_* / sr_* API,
+   the driver class) stays private so it cannot clash with other libraries in the process.
+   Log*, scopehal and glib symbols are undefined here and resolve to the host's copies. */
+{
+	global:
+		PluginInit;
+	local:
+		*;
+};
