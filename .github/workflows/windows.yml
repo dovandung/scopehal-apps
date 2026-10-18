@@ -135,7 +135,35 @@ jobs:
             -DNGSCOPECLIENT_PACKAGE_VERSION_LONG="$VERSION"
 
       - name: Build ngscopeclient, plugin, portable zip and MSI
-        run: cmake --build build -j 4
+        run: |
+          set -o pipefail
+          # -k 0: keep going so one run reports every failing target
+          if cmake --build build -j 4 -- -k 0 2>&1 | tee build.log; then
+            exit 0
+          fi
+          # Surface the errors as annotations (readable from the API and the run summary)
+          {
+            echo "### Failed targets"
+            grep -E "^FAILED: " build.log | head -40
+            echo "### Errors"
+            grep -nE "error:|Error [0-9]|undefined reference|cannot find|No such file|fatal" build.log | head -80
+          } > errors.txt
+          grep -E "^FAILED: " build.log | head -20 | while IFS= read -r l; do echo "::error title=Failed target::$l"; done
+          grep -E "error:|undefined reference|fatal error|cannot find -l" build.log | head -30 | while IFS= read -r l; do echo "::error title=Compiler/linker::$l"; done
+          # Log tail, newlines encoded so it stays one annotation
+          tail -60 build.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | sed 's/^/::error title=Build log tail::/'
+          cat errors.txt >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            build.log
+            build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
 
       - name: Plugin exports PluginInit
         run: |

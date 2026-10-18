@@ -65,7 +65,10 @@ endif()
 add_library(sigrok4DSL STATIC ${SR_SOURCES})
 set_target_properties(sigrok4DSL PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(sigrok4DSL PUBLIC ${SR_DEFS})
-target_compile_options(sigrok4DSL PRIVATE -w -O2 -fvisibility=hidden)
+# -fpermissive: GCC >= 14 turns implicit declarations / incompatible pointer types in older C code
+# into hard errors (not silenced by -w). DSView's sources predate that.
+target_compile_options(sigrok4DSL PRIVATE -w -O2 -fvisibility=hidden
+	$<$<C_COMPILER_ID:GNU>:-fpermissive>)
 target_include_directories(sigrok4DSL PUBLIC
 	"${ALLLOGIC_DIR}"
 	"${SR_DIR}"
