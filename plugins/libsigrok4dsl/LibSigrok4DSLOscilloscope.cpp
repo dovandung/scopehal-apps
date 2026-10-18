@@ -17,6 +17,10 @@
 
 #include <sys/stat.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +168,20 @@ void LibSigrok4DSLOscilloscope::ParseConnectionString(const string& path)
 		vector<string> candidates;
 		if(auto env = getenv("DSVIEW_RES_DIR"))
 			candidates.push_back(env);
+#ifdef _WIN32
+		//Windows packages ship the firmware as "res" next to ngscopeclient.exe
+		char exe[MAX_PATH];
+		DWORD len = GetModuleFileNameA(nullptr, exe, sizeof(exe));
+		if(len > 0 && len < sizeof(exe))
+		{
+			string dir(exe, len);
+			auto slash = dir.find_last_of("\\/");
+			if(slash != string::npos)
+				candidates.push_back(dir.substr(0, slash) + "\\res");
+		}
+		if(auto appdata = getenv("LOCALAPPDATA"))
+			candidates.push_back(string(appdata) + "\\DSView\\res");
+#endif
 		if(auto home = getenv("HOME"))
 			candidates.push_back(string(home) + "/.local/share/DSView/res");
 		candidates.push_back("/usr/local/share/DSView/res");

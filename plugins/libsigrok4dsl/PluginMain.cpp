@@ -8,12 +8,18 @@
 
 /**
 	@file
-	@brief Plugin entry point: scopehal's InitializePlugins() calls PluginInit() after dlopen()
+	@brief Plugin entry point: scopehal's InitializePlugins() calls PluginInit() after loading the library
  */
 
 #include "LibSigrok4DSLOscilloscope.h"
 
-extern "C" __attribute__((visibility("default"))) void PluginInit();
+#ifdef _WIN32
+#define PLUGIN_EXPORT __declspec(dllexport)
+#else
+#define PLUGIN_EXPORT __attribute__((visibility("default")))
+#endif
+
+extern "C" PLUGIN_EXPORT void PluginInit();
 
 void PluginInit()
 {

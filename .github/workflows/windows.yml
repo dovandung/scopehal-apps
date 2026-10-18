@@ -1,0 +1,201 @@
+# Windows x64 build of ngscopeclient with every built-in driver plus the libsigrok4DSL plugin
+# (DSLogic/DSCope, CH32, SLogic, PXLogic, ATK-Logic, FX2, FX3, hsdaoh-la, demo).
+#
+# Produces, as workflow artifacts:
+#   ngscopeclient-<version>-windows-x64-portable.zip   unzip and run ngscopeclient.exe
+#   ngscopeclient-<version>-windows-x64.msi            installer
+#
+# Toolchain: MSYS2 UCRT64, as in ngscopeclient's own Windows build instructions.
+
+name: Windows build
+
+on:
+  push:
+    branches: [ master, libsigrok4dsl-plugin ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      allogic_ref:
+        description: ALL-LOGIC branch or tag to build libsigrok4DSL from
+        default: main
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    permissions:
+      contents: write   # only used to attach files to a release when a v* tag is pushed
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Set up MSYS2 (UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            wget
+            zip
+            unzip
+            base-devel
+          pacboy: >-
+            toolchain:p
+            cmake:p
+            ninja:p
+            pkgconf:p
+            python:p
+            libsigc++:p
+            yaml-cpp:p
+            glfw:p
+            catch:p
+            hidapi:p
+            libpng:p
+            vulkan-headers:p
+            vulkan-loader:p
+            shaderc:p
+            glslang:p
+            spirv-tools:p
+            fftw:p
+            glib2:p
+            libusb:p
+            zlib:p
+            mesa:p
+
+      - name: Check out scopehal-apps
+        uses: actions/checkout@v4
+        with:
+          path: scopehal-apps
+          submodules: recursive
+
+      - name: Check out ALL-LOGIC (libsigrok4DSL)
+        uses: actions/checkout@v4
+        with:
+          repository: dovandung/ALL-LOGIC
+          ref: ${{ github.event.inputs.allogic_ref || 'main' }}
+          path: ALL-LOGIC
+
+      - name: Build libuvc and libhsdaoh (for the hsdaoh-la driver)
+        run: |
+          set -e
+          PREFIX="$(cygpath -m "$MINGW_PREFIX")"
+
+          git clone --depth 1 https://github.com/steve-m/libuvc.git
+          cmake -G Ninja -S libuvc -B libuvc/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX"
+          cmake --build libuvc/build
+          cmake --install libuvc/build
+
+          git clone --depth 1 -b la https://github.com/dovandung/hsdaoh.git
+          cmake -G Ninja -S hsdaoh -B hsdaoh/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
+            -DHSDAOH_BUILD_TOOLS=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX"
+          cmake --build hsdaoh/build
+          cmake --install hsdaoh/build
+
+          pkg-config --modversion libhsdaoh
+
+      - name: Install WiX Toolset 3 (MSI packaging)
+        shell: pwsh
+        run: |
+          $wix = "C:\Program Files (x86)\WiX Toolset v3.14\bin"
+          if (-not (Test-Path "$wix\candle.exe")) {
+            choco install wixtoolset --version=3.14.1 -y --no-progress
+          }
+          if (-not (Test-Path "$wix\candle.exe")) { throw "WiX not found in $wix" }
+
+      - name: Configure
+        run: |
+          set -e
+          # The fork carries no release tags, so give the version explicitly. The MSI needs it
+          # in the form vMAJOR.MINOR-BUILD.
+          SHA="$(git -C scopehal-apps rev-parse --short HEAD)"
+          VERSION="v0.3-${GITHUB_RUN_NUMBER}-g${SHA}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          cmake -G Ninja -S scopehal-apps -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DALLLOGIC_DIR="$(cygpath -m "$GITHUB_WORKSPACE/ALL-LOGIC")" \
+            -DLIBSIGROK4DSL_PLUGIN_TESTS=ON \
+            -DWIXPATH="C:/Program Files (x86)/WiX Toolset v3.14/bin" \
+            -DNGSCOPECLIENT_PACKAGE_VERSION="$VERSION" \
+            -DNGSCOPECLIENT_PACKAGE_VERSION_LONG="$VERSION"
+
+      - name: Build ngscopeclient, plugin, portable zip and MSI
+        run: cmake --build build -j 4
+
+      - name: Plugin exports PluginInit
+        run: |
+          set -e
+          dll=build/src/ngscopeclient/plugins/libscopehal-libsigrok4dsl.dll
+          ls -la "$dll"
+          objdump -p "$dll" | grep -A20 "Ordinal/Name Pointer" | grep PluginInit
+          echo "hsdaoh-la compiled in:"
+          strings "$dll" | grep -m1 -i "hsdaoh" || echo "  (no)"
+
+      - name: Engine tests (libsigrok4DSL demo device)
+        run: |
+          set -e
+          cd build/src/ngscopeclient
+          ./libsigrok4dsl-engine-test.exe demo
+          ./libsigrok4dsl-engine-test.exe demo --mode dso
+
+      - name: Plugin smoke test inside libscopehal (software Vulkan)
+        run: |
+          cd build/src/ngscopeclient
+          icd="$(ls "$MINGW_PREFIX"/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1)"
+          if [ -n "$icd" ]; then
+            export VK_DRIVER_FILES="$(cygpath -w "$icd")"
+            export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
+            echo "Using $VK_DRIVER_FILES"
+          fi
+          set +e
+          ./libsigrok4dsl-plugin-smoke-test.exe demo
+          rc=$?
+          if [ $rc -eq 77 ]; then
+            echo "::warning::No Vulkan device on the runner; in-process smoke test skipped"
+            exit 0
+          fi
+          exit $rc
+
+      - name: Package contents
+        run: |
+          d=build/dist/ngscopeclient_windows_x64
+          ls "$d" | head -100
+          ls "$d/plugins" "$d/res" | head -60
+          ls -la build/dist/*.zip build/dist/*.msi
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ngscopeclient-${{ env.VERSION }}-windows-x64-portable
+          path: build/dist/*.zip
+          if-no-files-found: error
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: ngscopeclient-${{ env.VERSION }}-windows-x64-msi
+          path: build/dist/*.msi
+          if-no-files-found: error
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/dist/*.zip
+            build/dist/*.msi

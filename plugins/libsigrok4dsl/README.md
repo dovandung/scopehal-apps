@@ -49,6 +49,30 @@ places scopehal loads plugins from. `cmake --install` puts it in
 USB access needs the same udev rules as ALL-LOGIC / DSView, and devices that
 load firmware or an FPGA bitstream need DSView's `res` directory (see below).
 
+## Windows
+
+`.github/workflows/windows.yml` builds everything on GitHub's Windows runners
+with MSYS2 UCRT64 (ngscopeclient's documented toolchain): libuvc and
+[libhsdaoh](https://github.com/dovandung/hsdaoh) for the hsdaoh-la driver,
+ngscopeclient with all of its built-in drivers, this plugin, the engine tests,
+and an in-process smoke test on software Vulkan. It uploads:
+
+- `ngscopeclient-<version>-windows-x64-portable.zip`: unzip, run
+  `ngscopeclient.exe`
+- `ngscopeclient-<version>-windows-x64.msi`: installer
+
+Both contain `plugins\libscopehal-libsigrok4dsl.dll` (scopehal loads
+`<exe dir>\plugins\*.dll`), the DLLs it needs next to the exe, and the device
+firmware in `res\`, which the plugin finds on its own. Pushing a `v*` tag also
+attaches both files to a GitHub release.
+
+USB devices need the WinUSB driver (install it with
+[Zadig](https://zadig.akeo.ie/) as for DSView / ALL-LOGIC).
+
+To build locally, follow ngscopeclient's MSYS2 instructions, add
+`mingw-w64-ucrt-x86_64-glib2 mingw-w64-ucrt-x86_64-libusb`, and pass
+`-DALLLOGIC_DIR=...` (and `-DWIXPATH=...` for the zip/MSI) to cmake.
+
 ## Use
 
 **Add → Oscilloscope**, driver **`libsigrok4dsl`**, transport **`null`**,

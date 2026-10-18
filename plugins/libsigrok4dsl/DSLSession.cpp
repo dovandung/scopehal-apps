@@ -196,7 +196,7 @@ bool DSLSession::InitLibrary(const string& resourceDir, int logLevel)
 	ds_log_level(logLevel);
 	if(!res.empty())
 		ds_set_firmware_resource_dir(res.c_str());
-	ds_set_user_data_dir("/tmp");
+	ds_set_user_data_dir(g_get_tmp_dir());
 	ds_set_event_callback(EventTrampoline);
 	ds_set_datafeed_callback(DatafeedTrampoline);
 
@@ -779,7 +779,9 @@ void DSLSession::InitCapture(DSLCapture& c)
 
 void DSLSession::AcquisitionThread()
 {
+#ifdef __linux__
 	pthread_setname_np(pthread_self(), "DSLAcquisition");
+#endif
 
 	int failures = 0;
 	bool forcing = false;
