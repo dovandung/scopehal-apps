@@ -224,6 +224,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: ngscopeclient ${{ github.ref_name }} for Windows (with libsigrok4DSL plugin)
+          body_path: scopehal-apps/plugins/libsigrok4dsl/windows/RELEASE_NOTES.md
           files: |
             build/dist/*.zip
             build/dist/*.msi
