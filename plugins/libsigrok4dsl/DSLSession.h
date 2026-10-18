@@ -120,6 +120,17 @@ public:
 		int id = -1;
 	};
 
+	/**
+		@brief Records a channel mode choice where the driver reads it when it scans, before the
+		library is initialized
+
+		Cypress FX3: the firmware for a mode is loaded when the scan finds the FX3 in its boot
+		loader (freshly plugged in). The library scans in ds_lib_init(), before a mode can be set
+		through the device, so without this a freshly plugged FX3 would get the previous mode's
+		firmware and need a replug.
+	 */
+	static void PresetChannelMode(const std::string& selector, const ChannelModeRequest& req);
+
 	//Library / device lifetime
 	bool InitLibrary(const std::string& resourceDir, int logLevel = 1);
 	std::vector<DeviceEntry> ListDevices();

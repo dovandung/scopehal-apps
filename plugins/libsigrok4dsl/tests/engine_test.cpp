@@ -20,6 +20,7 @@
 #include "log/log.h"
 
 #include <libsigrok.h>
+#include <glib/gstdio.h>
 
 #include <cstdio>
 #include <cstring>
@@ -335,6 +336,59 @@ static void TestChannelModes(DSLSession& s, const string& selector, int mode)
 	s.Close();
 }
 
+/**
+	@brief fx3,channels=N is written where the FX3 driver reads it at scan time
+ */
+static void TestFx3Preset()
+{
+	printf("FX3 channel mode preset\n");
+	gchar* ini = g_build_filename(g_get_user_config_dir(), "AllLogic", "cypress-fx3.ini", NULL);
+	gchar* saved = NULL;
+	gsize savedLen = 0;
+	bool had = g_file_get_contents(ini, &saved, &savedLen, NULL);
+
+	auto modeInFile = [&]()
+	{
+		GKeyFile* kf = g_key_file_new();
+		int v = -1;
+		if(g_key_file_load_from_file(kf, ini, G_KEY_FILE_NONE, NULL))
+		{
+			GError* e = NULL;
+			v = g_key_file_get_integer(kf, "cypress-fx3", "channel_mode", &e);
+			if(e)
+			{
+				v = -1;
+				g_clear_error(&e);
+			}
+		}
+		g_key_file_free(kf);
+		return v;
+	};
+
+	DSLSession::ChannelModeRequest r;
+	r.channels = 16;
+	DSLSession::PresetChannelMode("fx3", r);
+	CHECK(modeInFile() == 1, "fx3,channels=16 -> channel_mode=1");
+	r.channels = 8;
+	DSLSession::PresetChannelMode("Cypress-FX3", r);
+	CHECK(modeInFile() == 0, "cypress-fx3,channels=8 -> channel_mode=0");
+	r.channels = 16;
+	DSLSession::PresetChannelMode("slogic", r);
+	CHECK(modeInFile() == 0, "other devices leave it alone");
+	r.channels = -1;
+	r.id = 1;
+	DSLSession::PresetChannelMode("fx3", r);
+	CHECK(modeInFile() == 1, "fx3,chmode=1 -> channel_mode=1");
+
+	//Leave the user's file as it was
+	if(had)
+		g_file_set_contents(ini, saved, savedLen, NULL);
+	else
+		g_remove(ini);
+	g_free(saved);
+	g_free(ini);
+}
+
 int main(int argc, char* argv[])
 {
 	string selector = "demo";
@@ -354,6 +408,7 @@ int main(int argc, char* argv[])
 	g_log_sinks.emplace(g_log_sinks.begin(), new ColoredSTDLogSink(Severity::NOTICE));
 
 	TestDecoder();
+	TestFx3Preset();
 
 	auto& s = DSLSession::Get();
 	if(!s.InitLibrary(res, 1))

@@ -125,12 +125,19 @@ warning in the log that lists its modes.
 Examples: `fx3,channels=16`, `combo,channels=4`, `slogic16u3,channels=8`.
 
 **Cypress FX3:** each mode is its own firmware, loaded into the FX3's RAM
-when it is plugged in, so a new mode takes effect after a replug. Connecting
-with `fx3,channels=16` saves the choice (shared with ALL-LOGIC, in
-`%LOCALAPPDATA%\AllLogic\cypress-fx3.ini`) and, if the FX3 still runs the
-other firmware, the instrument is named "FX3 (replug to apply channel mode)"
-and keeps its current channels. Close the instrument, unplug and plug in the
-FX3, and add it again with the same path: it now runs the chosen firmware.
+when the library finds it freshly plugged in (boot loader). The plugin saves
+`channels=` (shared with ALL-LOGIC, in
+`%LOCALAPPDATA%\AllLogic\cypress-fx3.ini`) *before* the library's first scan,
+so:
+
+- FX3 plugged in after the last run: start ngscopeclient and add `fx3,channels=16`;
+  the 16 channel firmware is loaded right away.
+- FX3 still running the other firmware (it stays loaded until unplugged): the
+  instrument is named "FX3 (replug to apply channel mode)" and keeps the
+  channels the firmware has. Close the instrument, unplug and plug in the FX3,
+  and add it again with the same path; no need to restart ngscopeclient.
+
+Only the channels the running firmware samples are shown (8 or 16).
 
 ### What is supported
 

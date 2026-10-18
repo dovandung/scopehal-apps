@@ -46,13 +46,17 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 
 	ParseConnectionString(transport->GetConnectionString());
 
+	DSLSession::ChannelModeRequest chmode;
+	chmode.channels = m_requestedChannels;
+	chmode.id = m_requestedChannelModeId;
+
+	//Before the library's first scan, which loads the FX3 firmware for the saved mode
+	DSLSession::PresetChannelMode(m_selector, chmode);
+
 	if(!m_session.InitLibrary(m_resDir))
 		return;
 
 	string err;
-	DSLSession::ChannelModeRequest chmode;
-	chmode.channels = m_requestedChannels;
-	chmode.id = m_requestedChannelModeId;
 	if(!m_session.Open(m_selector, m_requestedMode, err, chmode))
 	{
 		LogError("libsigrok4DSL: %s\n", err.c_str());

@@ -184,6 +184,51 @@ DSLSession::~DSLSession()
 	The library is never shut down: ds_lib_exit() followed by ds_lib_init() is not something
 	DSView does, and the hotplug thread it starts is cheap.
  */
+void DSLSession::PresetChannelMode(const string& selector, const ChannelModeRequest& req)
+{
+	//Only the FX3 picks its mode at scan time (cypress_fx3.c: chosen_mode())
+	string sel;
+	for(char c : selector)
+		sel += (char)tolower((unsigned char)c);
+	if(sel.find("fx3") == string::npos)
+		return;
+
+	int mode = -1;
+	if(req.id == 0 || req.id == 1)
+		mode = req.id;
+	else if(req.channels == 8)
+		mode = 0;
+	else if(req.channels == 16)
+		mode = 1;
+	if(mode < 0)
+		return;
+
+	//Same file and key as the driver, shared with ALL-LOGIC
+	gchar* dir = g_build_filename(g_get_user_config_dir(), "AllLogic", NULL);
+	gchar* path = g_build_filename(dir, "cypress-fx3.ini", NULL);
+	GKeyFile* kf = g_key_file_new();
+	g_key_file_load_from_file(kf, path, G_KEY_FILE_KEEP_COMMENTS, NULL);
+	GError* err = NULL;
+	int cur = g_key_file_get_integer(kf, "cypress-fx3", "channel_mode", &err);
+	if(err || cur != mode)
+	{
+		g_clear_error(&err);
+		g_key_file_set_integer(kf, "cypress-fx3", "channel_mode", mode);
+		g_mkdir_with_parents(dir, 0755);
+		if(!g_key_file_save_to_file(kf, path, &err))
+		{
+			LogWarning("libsigrok4DSL: cannot save %s: %s\n", path, err ? err->message : "?");
+			g_clear_error(&err);
+		}
+		else
+			LogDebug("libsigrok4DSL: FX3 channel mode %d saved in %s\n", mode, path);
+	}
+	g_clear_error(&err);
+	g_key_file_free(kf);
+	g_free(path);
+	g_free(dir);
+}
+
 bool DSLSession::InitLibrary(const string& resourceDir, int logLevel)
 {
 	if(m_libInit)
@@ -248,16 +293,22 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error, 
 		return false;
 	}
 
-	ds_device_base_info* list = nullptr;
-	int count = 0;
-	if(ds_get_device_list(&list, &count) != SR_OK || !list || count == 0)
+	vector<ds_device_base_info> devs;
+	auto getList = [&]()
 	{
+		ds_device_base_info* list = nullptr;
+		int count = 0;
+		devs.clear();
+		if(ds_get_device_list(&list, &count) == SR_OK && list && count > 0)
+			devs.assign(list, list + count);
 		g_free(list);
+	};
+	getList();
+	if(devs.empty())
+	{
 		error = "libsigrok4DSL found no devices";
 		return false;
 	}
-	vector<ds_device_base_info> devs(list, list + count);
-	g_free(list);
 
 	ds_device_full_info info;
 	auto activate = [&](size_t i)
@@ -270,31 +321,46 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error, 
 		return info.handle == devs[i].handle;
 	};
 
-	bool found = false;
 	string want = Lower(selector);
-	if(want.empty())
+	auto match = [&]()
 	{
-		//First real device, demo as a last resort
-		for(size_t i=0; !found && i<devs.size(); i++)
-			found = activate(i) && info.dev_type == DEV_TYPE_USB;
-		for(size_t i=0; !found && i<devs.size(); i++)
-			found = activate(i);
-	}
-	else
-	{
-		if(IsNumber(want))
+		bool found = false;
+		if(want.empty())
 		{
-			size_t idx = stoul(want);
-			if(idx < devs.size())
-				found = activate(idx);
-		}
-		for(size_t i=0; !found && i<devs.size(); i++)
-		{
-			if(Lower(devs[i].name).find(want) != string::npos)
+			//First real device, demo as a last resort
+			for(size_t i=0; !found && i<devs.size(); i++)
+				found = activate(i) && info.dev_type == DEV_TYPE_USB;
+			for(size_t i=0; !found && i<devs.size(); i++)
 				found = activate(i);
 		}
-		for(size_t i=0; !found && i<devs.size(); i++)
-			found = activate(i) && Lower(info.driver_name) == want;
+		else
+		{
+			if(IsNumber(want))
+			{
+				size_t idx = stoul(want);
+				if(idx < devs.size())
+					found = activate(idx);
+			}
+			for(size_t i=0; !found && i<devs.size(); i++)
+			{
+				if(Lower(devs[i].name).find(want) != string::npos)
+					found = activate(i);
+			}
+			for(size_t i=0; !found && i<devs.size(); i++)
+				found = activate(i) && Lower(info.driver_name) == want;
+		}
+		return found;
+	};
+
+	bool found = match();
+	if(!found && !want.empty())
+	{
+		//A device replugged while the program runs (e.g. an FX3 to load another firmware) can
+		//miss the hotplug rescan; scan again, as DSView does when asked to
+		LogDebug("libsigrok4DSL: no device matches \"%s\", rescanning\n", selector.c_str());
+		ds_reload_device_list();
+		getList();
+		found = match();
 	}
 
 	if(!found)
@@ -327,6 +393,27 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error, 
 		string why;
 		if(!ApplyChannelMode(channelMode, why))
 			LogWarning("libsigrok4DSL: %s\n", why.c_str());
+
+		//The mode can be chosen while the device still samples another one (FX3: chosen in an
+		//earlier run, firmware loaded before that): compare with what it samples now
+		auto vld = GetConfig<int16_t>(nullptr, SR_CONF_VLD_CH_NUM);
+		int want = channelMode.channels;
+		if(want <= 0)
+		{
+			for(auto& m : GetChannelModes())
+			{
+				if(m.id == channelMode.id)
+					want = m.channels;
+			}
+		}
+		if(!m_reconnectNeeded && vld && *vld > 0 && want > 0 && *vld != want &&
+			m_driverName == "cypress-fx3")
+		{
+			m_reconnectNeeded = true;
+			LogWarning("libsigrok4DSL: \"%s\" still runs the %d channel firmware. Unplug it, plug it "
+				"in again and reconnect the instrument to use %d channels.\n",
+				m_devName.c_str(), (int)*vld, want);
+		}
 	}
 
 	int mode = ds_get_actived_device_mode();
@@ -344,6 +431,15 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error, 
 	m_channels.clear();
 	for(GSList* l = ds_get_actived_device_channels(); l; l = l->next)
 		m_channels.push_back(l->data);
+
+	//Only show the channels the device samples in its current mode (FX3: 8 channel firmware
+	//still lists 16 channels), as DSView does
+	if(!m_isDSO)
+	{
+		auto vld = GetConfig<int16_t>(nullptr, SR_CONF_VLD_CH_NUM);
+		if(vld && *vld > 0 && (size_t)*vld < m_channels.size())
+			m_channels.resize(*vld);
+	}
 
 	auto hwdepth = GetConfig<uint64_t>(nullptr, SR_CONF_HW_DEPTH);
 	if(hwdepth && *hwdepth > 0 && *hwdepth < m_maxDepth)
