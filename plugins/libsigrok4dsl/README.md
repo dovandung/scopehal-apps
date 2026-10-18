@@ -64,7 +64,8 @@ and an in-process smoke test on software Vulkan. It uploads:
 Both contain `plugins\libscopehal-libsigrok4dsl.dll` (scopehal loads
 `<exe dir>\plugins\*.dll`), the DLLs it needs next to the exe, and the device
 firmware in `res\`, which the plugin finds on its own. Pushing a `v*` tag also
-attaches both files to a GitHub release.
+attaches both files to a GitHub release; so does running the workflow by
+hand (Actions → Windows build → Run workflow) with a `release_tag`.
 
 USB devices need the WinUSB driver (install it with
 [Zadig](https://zadig.akeo.ie/) as for DSView / ALL-LOGIC).

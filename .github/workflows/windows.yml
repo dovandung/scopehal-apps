@@ -19,6 +19,9 @@ on:
       allogic_ref:
         description: ALL-LOGIC branch or tag to build libsigrok4DSL from
         default: main
+      release_tag:
+        description: "Publish a GitHub release under this new tag (e.g. v0.3-libsigrok4dsl.1). Empty: build only."
+        default: ""
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -220,11 +223,13 @@ jobs:
           path: build/dist/*.msi
           if-no-files-found: error
 
-      - name: Publish release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish release (v* tag pushed, or release_tag given when run by hand)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          name: ngscopeclient ${{ github.ref_name }} for Windows (with libsigrok4DSL plugin)
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ngscopeclient ${{ github.event.inputs.release_tag || github.ref_name }} for Windows (with libsigrok4DSL plugin)
           body_path: scopehal-apps/plugins/libsigrok4dsl/windows/RELEASE_NOTES.md
           files: |
             build/dist/*.zip
