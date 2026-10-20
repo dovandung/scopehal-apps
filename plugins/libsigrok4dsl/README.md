@@ -17,7 +17,7 @@ talks to the USB device directly.
 | Alientek ATK-Logic (DL16 ...) | `atk-logic` | `ATK-Logic` | `atk` |
 | nanoDLA / Cypress FX2 (fx2lafw) | `fx2lafw` | `nanoDLA`, `FX2 LA (16ch)` | `fx2lafw` |
 | Cypress FX3 | `cypress-fx3` | `FX3` | `fx3` |
-| RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8 (RP2350 + MS2130)` | `hsdaoh-la` |
+| RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8`, `la4` or `la48 (RP2350 + MS2130)` | `hsdaoh-la` |
 | Demo device (no hardware) | `virtual-demo` | `Demo Device` | `demo` |
 
 Logic analyzers appear as digital channels; DSCope in DSO mode as analog
@@ -120,9 +120,11 @@ warning in the log that lists its modes.
 | CH32H417 | `16`, `8` | |
 | DSLogic | depends on model, e.g. `16`, `12`, `6`, `3` | |
 | PXLogic | depends on model | |
+| hsdaoh-la, la48 firmware | `8`, `4` | 140 / 280 MS/s |
 | Demo | `16`, `12`, `6`, `3` | 125 / 250 / 500 / 1000 MS/s |
 
-Examples: `fx3,channels=16`, `combo,channels=4`, `slogic16u3,channels=8`.
+Examples: `fx3,channels=16`, `combo,channels=4`, `slogic16u3,channels=8`,
+`hsdaoh-la,channels=4`.
 
 **Cypress FX3:** each mode is its own firmware, loaded into the FX3's RAM
 when the library finds it freshly plugged in (boot loader). The plugin saves
@@ -138,6 +140,14 @@ so:
   and add it again with the same path; no need to restart ngscopeclient.
 
 Only the channels the running firmware samples are shown (8 or 16).
+
+**hsdaoh-la:** the la8 firmware has 8 channels (up to 140 MS/s), la4 has 4
+(up to 280 MS/s), and la48 switches between the two: `hsdaoh-la,channels=4`
+or `channels=8` sends `ch 4` / `ch 8` to the Pico over its USB serial port
+when the instrument is added, at once, with no replug. The sample rate list
+follows the mode. Without the Pico's serial port the mode cannot be changed.
+la4 streams need libhsdaoh (branch `la`) from commit `25951fc` on; the
+Windows build checks for it.
 
 ### What is supported
 

@@ -109,6 +109,10 @@ jobs:
           cmake --install hsdaoh/build
 
           pkg-config --modversion libhsdaoh
+          # la4 / la48 in 4 channel mode need the stream format (libhsdaoh la >= 25951fc);
+          # an older libhsdaoh still builds but would read 4-bit streams as 8-bit
+          grep -q HSDAOH_FORMAT_PIO_4BIT "$MINGW_PREFIX/include/hsdaoh.h" || {
+            echo "::error::libhsdaoh lacks HSDAOH_FORMAT_PIO_4BIT (needs branch la >= 25951fc)"; exit 1; }
 
       - name: Install WiX Toolset 3 (MSI packaging)
         shell: pwsh

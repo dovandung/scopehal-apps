@@ -17,7 +17,7 @@ ngscopeclient for Windows x64 with the **libsigrok4DSL plugin**: native support 
 | Alientek ATK-Logic (DL16 ...) | `atk-logic` | `ATK-Logic` | `atk` |
 | nanoDLA / Cypress FX2 (fx2lafw) | `fx2lafw` | `nanoDLA`, `FX2 LA (16ch)` | `fx2lafw` |
 | Cypress FX3 | `cypress-fx3` | `FX3` | `fx3` |
-| RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8 (RP2350 + MS2130)` | `hsdaoh-la` |
+| RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8`, `la4` or `la48 (RP2350 + MS2130)` | `hsdaoh-la` |
 | Demo device (no hardware) | `virtual-demo` | `Demo Device` | `demo` |
 
 Device firmware is included in `res\`, next to `ngscopeclient.exe`.
@@ -46,17 +46,22 @@ warning in the log that lists its modes.
 | CH32H417 | `16`, `8` | |
 | DSLogic | depends on model, e.g. `16`, `12`, `6`, `3` | |
 | PXLogic | depends on model | |
+| hsdaoh-la, la48 firmware | `8`, `4` | 140 / 280 MS/s |
 | Demo | `16`, `12`, `6`, `3` | 125 / 250 / 500 / 1000 MS/s |
 
-Examples: `fx3,channels=16`, `combo,channels=4`, `slogic16u3,channels=8`.
+Examples: `fx3,channels=16`, `combo,channels=4`, `slogic16u3,channels=8`, `hsdaoh-la,channels=4`.
 
 **Cypress FX3:** each mode is its own firmware, loaded into the FX3's RAM
-when it is plugged in, so a new mode takes effect after a replug. Connecting
-with `fx3,channels=16` saves the choice (shared with ALL-LOGIC, in
-`%LOCALAPPDATA%\AllLogic\cypress-fx3.ini`) and, if the FX3 still runs the
-other firmware, the instrument is named "FX3 (replug to apply channel mode)"
-and keeps its current channels. Close the instrument, unplug and plug in the
-FX3, and add it again with the same path: it now runs the chosen firmware.
+when it is plugged in. The plugin saves `channels=` (shared with ALL-LOGIC,
+in `%LOCALAPPDATA%\AllLogic\cypress-fx3.ini`) before the device scan, so an
+FX3 plugged in after the last run gets the chosen firmware at once. If it
+still runs the other firmware, the instrument is named "FX3 (replug to apply
+channel mode)": close it, unplug and plug in the FX3, and add it again with
+the same path (no restart needed).
+
+**hsdaoh-la:** la8 has 8 channels (140 MS/s), la4 has 4 (280 MS/s). The la48
+firmware switches between them at once, no replug: `hsdaoh-la,channels=4` or
+`channels=8` (needs the Pico's USB serial port).
 
 ### Notes
 
