@@ -18,7 +18,7 @@ on:
     inputs:
       allogic_ref:
         description: ALL-LOGIC branch or tag to build libsigrok4DSL from
-        default: main
+        default: fast-trigger
       release_tag:
         description: "Publish a GitHub release under this new tag (e.g. v0.3-libsigrok4dsl.1). Empty: build only."
         default: ""
@@ -83,7 +83,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dovandung/ALL-LOGIC
-          ref: ${{ github.event.inputs.allogic_ref || 'main' }}
+          ref: ${{ github.event.inputs.allogic_ref || 'fast-trigger' }}
           path: ALL-LOGIC
 
       - name: Build libuvc and libhsdaoh (for the hsdaoh-la driver)
