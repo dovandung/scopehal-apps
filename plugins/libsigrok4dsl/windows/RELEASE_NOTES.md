@@ -15,6 +15,7 @@ ngscopeclient for Windows x64 with the **libsigrok4DSL plugin**: native support 
 | Sipeed SLogic Combo 8 / 16U3 / 32U3 | `slogic-16u3` | `SLogic Combo 8`, `SLogic16U3`, `SLogic32U3` | `slogic-16u3` |
 | PXLogic32U3 | `pxlogic` | `PX-Logic U3 channel 32` (and variants) | `px-logic` |
 | Alientek ATK-Logic (DL16 ...) | `atk-logic` | `ATK-Logic` | `atk` |
+| ALIENTEK DL32 / DL32 Plus | `alientek-dl32` | `DL32`, `DL32 Plus` | `dl32` |
 | nanoDLA / Cypress FX2 (fx2lafw) | `fx2lafw` | `nanoDLA`, `FX2 LA (16ch)` | `fx2lafw` |
 | Cypress FX3 | `cypress-fx3` | `FX3` | `fx3` |
 | RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8`, `la4` or `la48 (RP2350 + MS2130)` | `hsdaoh-la` |
@@ -26,7 +27,7 @@ Device firmware is included in `res\`, next to `ngscopeclient.exe`.
 
 1. Install the WinUSB driver for your analyzer with [Zadig](https://zadig.akeo.ie/), as for ALL-LOGIC / DSView.
 2. In ngscopeclient: **Add → Oscilloscope**, driver `libsigrok4dsl`, transport `null`, path from the table above (e.g. `fx3`, `slogic-16u3`, `fx2lafw`), or `demo` to try it without hardware. The path matches part of the device name or the exact driver name, case-insensitively.
-   Options after a comma: `channels=N` (channel mode, see below), `res=C:\path\to\firmware`, `mode=dso`, `maxdepth=10000000`.
+   Options after a comma: `channels=N` (channel mode, see below), `res=C:\path\to\firmware`, `mode=dso`, `maxdepth=10000000`, `op=buffer` or `op=stream` (DSLogic, ALIENTEK DL32: Buffer Mode gives the DL32 its rates above 100 MS/s, up to 1 GS/s).
 
 One libsigrok4DSL device per ngscopeclient window.
 

@@ -128,6 +128,7 @@ protected:
 	uint64_t m_maxDepth;
 	int m_requestedChannels;
 	int m_requestedChannelModeId;
+	int m_requestedOpMode;		//DSLSession::OP_BUFFER / OP_STREAM, -1 = default
 
 	///@brief Femtoseconds from capture start to trigger
 	int64_t m_triggerOffset;

@@ -15,6 +15,7 @@ talks to the USB device directly.
 | Sipeed SLogic Combo 8 / 16U3 / 32U3 | `slogic-16u3` | `SLogic Combo 8`, `SLogic16U3`, `SLogic32U3` | `slogic-16u3` |
 | PXLogic32U3 | `pxlogic` | `PX-Logic U3 channel 32` (and variants) | `px-logic` |
 | Alientek ATK-Logic (DL16 ...) | `atk-logic` | `ATK-Logic` | `atk` |
+| ALIENTEK DL32 / DL32 Plus | `alientek-dl32` | `DL32`, `DL32 Plus` | `dl32` |
 | nanoDLA / Cypress FX2 (fx2lafw) | `fx2lafw` | `nanoDLA`, `FX2 LA (16ch)` | `fx2lafw` |
 | Cypress FX3 | `cypress-fx3` | `FX3` | `fx3` |
 | RP2350 + MS2130 (hsdaoh-la) | `hsdaoh-la` | `la8`, `la4` or `la48 (RP2350 + MS2130)` | `hsdaoh-la` |
@@ -81,7 +82,7 @@ To build locally, follow ngscopeclient's MSYS2 instructions, add
 path:
 
 ```
-<device>[,res=<firmware dir>][,mode=logic|dso][,maxdepth=<samples>][,channels=<count>][,chmode=<id>]
+<device>[,res=<firmware dir>][,mode=logic|dso][,maxdepth=<samples>][,channels=<count>][,chmode=<id>][,op=buffer|stream]
 ```
 
 - `<device>`: matched case-insensitively against, in order, a device index
@@ -96,10 +97,17 @@ path:
   `DSView/res` folder of the ALL-LOGIC tree the plugin was built from.
 - `mode=`: switch the device mode first (DSCope and the demo device have
   both).
+- `op=buffer` / `op=stream`: Buffer Mode (captured into the device's memory,
+  then read) or Stream Mode, on devices that have both (DSLogic, ALIENTEK
+  DL32). Default: Buffer Mode on DSLogic, the driver's default (Stream Mode)
+  on the DL32. The DL32's rates above 100 MS/s (up to 1 GS/s) exist in Buffer
+  Mode only, as long as rate x enabled channels fits its memory budget
+  (8 G on the DL32 Plus, 4 G on the DL32); a capture that does not fit is
+  refused and the log says what would.
 - `maxdepth=`: cap the memory depths offered (default: the driver's hardware
   depth, at most 100 M samples).
 
-Examples: `fx3`, `fx3,channels=16`, `slogic-16u3`, `fx2lafw,res=/opt/ALL-LOGIC/res`, `demo,mode=dso`.
+Examples: `fx3`, `dl32,op=buffer`, `fx3,channels=16`, `slogic-16u3`, `fx2lafw,res=/opt/ALL-LOGIC/res`, `demo,mode=dso`.
 
 The path is saved with the session, so reopening a session reconnects to the
 same device.

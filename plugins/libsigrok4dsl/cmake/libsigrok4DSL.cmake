@@ -49,6 +49,10 @@ set(SR_DEFS
 	HAVE_ATKLOGIC_DEVICE=1
 	HAVE_FX2LAFW_DEVICE=1
 	HAVE_CYPRESS_FX3_DEVICE=1)
+# Drivers newer than some ALL-LOGIC branches: only where their sources exist
+if(EXISTS "${SR_DIR}/hardware/alientek-dl32/dl32.c")
+	list(APPEND SR_DEFS HAVE_ALIENTEK_DL32_DEVICE=1)
+endif()
 
 option(ENABLE_HSDAOH_LA "Build the hsdaoh-la driver (needs libhsdaoh)" ON)
 if(ENABLE_HSDAOH_LA AND EXISTS "${SR_DIR}/hardware/hsdaoh-la/hsdaoh_la.c")

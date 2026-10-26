@@ -87,6 +87,13 @@ class DSLSession
 public:
 	static DSLSession& Get();
 
+	///@brief Operation modes, same values as libsigrok4DSL's LO_OP_BUFFER / LO_OP_STREAM
+	enum OperationMode
+	{
+		OP_BUFFER = 0,
+		OP_STREAM = 1
+	};
+
 	enum Edge
 	{
 		EDGE_RISING,
@@ -138,6 +145,13 @@ public:
 		const ChannelModeRequest& channelMode);
 	bool Open(const std::string& selector, int requestedMode, std::string& error);
 	void Close();
+
+	/**
+		@brief Buffer / Stream mode for the next Open(): OP_BUFFER, OP_STREAM, or -1 for
+		the default (Buffer Mode on DSLogic, the driver's own elsewhere)
+	 */
+	void RequestOperationMode(int op)
+	{ m_requestedOp = op; }
 	bool IsOpen() const
 	{ return m_open; }
 
@@ -258,6 +272,7 @@ protected:
 	std::string m_driverName;
 	bool m_isDSO = false;
 	bool m_reconnectNeeded = false;
+	int m_requestedOp = -1;
 	std::vector<void*> m_channels;		//struct sr_channel*
 	std::vector<uint64_t> m_vdivOptions;
 	int m_numDivs = 10;

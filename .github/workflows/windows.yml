@@ -1,5 +1,5 @@
 # Windows x64 build of ngscopeclient with every built-in driver plus the libsigrok4DSL plugin
-# (DSLogic/DSCope, CH32, SLogic, PXLogic, ATK-Logic, FX2, FX3, hsdaoh-la, demo).
+# (DSLogic/DSCope, CH32, SLogic, PXLogic, ATK-Logic, FX2, FX3, hsdaoh-la, ALIENTEK DL32, demo).
 #
 # Produces, as workflow artifacts:
 #   ngscopeclient-<version>-windows-x64-portable.zip   unzip and run ngscopeclient.exe

@@ -36,6 +36,7 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 	, m_maxDepth(0)
 	, m_requestedChannels(-1)
 	, m_requestedChannelModeId(-1)
+	, m_requestedOpMode(-1)
 	, m_triggerOffset(0)
 	, m_threshold(0)
 	, m_hasThreshold(false)
@@ -57,6 +58,7 @@ LibSigrok4DSLOscilloscope::LibSigrok4DSLOscilloscope(SCPITransport* transport)
 		return;
 
 	string err;
+	m_session.RequestOperationMode(m_requestedOpMode);
 	if(!m_session.Open(m_selector, m_requestedMode, err, chmode))
 	{
 		LogError("libsigrok4DSL: %s\n", err.c_str());
@@ -127,7 +129,7 @@ LibSigrok4DSLOscilloscope::~LibSigrok4DSLOscilloscope()
 }
 
 /**
-	@brief Parses "<device>[,res=DIR][,mode=logic|dso][,maxdepth=N][,channels=N][,chmode=ID]"
+	@brief Parses "<device>[,res=DIR][,mode=logic|dso][,maxdepth=N][,channels=N][,chmode=ID][,op=buffer|stream]"
  */
 void LibSigrok4DSLOscilloscope::ParseConnectionString(const string& path)
 {
@@ -173,6 +175,15 @@ void LibSigrok4DSLOscilloscope::ParseConnectionString(const string& path)
 			m_requestedChannels = atoi(val.c_str());
 		else if(key == "chmode")
 			m_requestedChannelModeId = atoi(val.c_str());
+		else if(key == "op")
+		{
+			if(val == "buffer")
+				m_requestedOpMode = DSLSession::OP_BUFFER;
+			else if(val == "stream")
+				m_requestedOpMode = DSLSession::OP_STREAM;
+			else
+				LogWarning("libsigrok4DSL: op=%s: expected buffer or stream\n", val.c_str());
+		}
 		else
 			LogWarning("libsigrok4DSL: unknown option \"%s\"\n", key.c_str());
 	}

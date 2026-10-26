@@ -460,9 +460,23 @@ bool DSLSession::Open(const string& selector, int requestedMode, string& error, 
 	}
 	else
 	{
-		//DSLogic needs buffer mode for a pre-trigger buffer; other drivers ignore the key
-		if(m_driverName.rfind("DSLogic", 0) == 0)
-			SetConfig<string>(nullptr, SR_CONF_OPERATION_MODE, "Buffer Mode");
+		//Operation mode (Buffer / Stream; DSLogic, ALIENTEK DL32). The drivers take the
+		//LO_OP_* id as int16. DSLogic needs Buffer Mode for a pre-trigger buffer.
+		static_assert((int)OP_BUFFER == (int)LO_OP_BUFFER && (int)OP_STREAM == (int)LO_OP_STREAM, "operation mode ids");
+		int op = m_requestedOp;
+		if(op < 0 && m_driverName.rfind("DSLogic", 0) == 0)
+			op = LO_OP_BUFFER;
+		if(op >= 0)
+		{
+			const char* opName = (op == LO_OP_BUFFER) ? "Buffer Mode" : "Stream Mode";
+			if(!GetConfig<int16_t>(nullptr, SR_CONF_OPERATION_MODE))
+				LogWarning("libsigrok4DSL: \"%s\" has no Buffer / Stream mode\n", m_devName.c_str());
+			else if(!SetConfig<int16_t>(nullptr, SR_CONF_OPERATION_MODE, (int16_t)op))
+				LogWarning("libsigrok4DSL: device refused %s\n", opName);
+			else
+				LogDebug("libsigrok4DSL: %s\n", opName);
+		}
+		m_requestedOp = -1;
 		ds_trigger_set_mode(SIMPLE_TRIGGER);
 	}
 

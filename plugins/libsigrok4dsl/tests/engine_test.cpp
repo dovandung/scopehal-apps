@@ -439,6 +439,18 @@ int main(int argc, char* argv[])
 	if(!dso)
 		TestChannelModes(s, selector, mode);
 
+	//op=buffer / op=stream: applied when the device has the setting, a warning otherwise
+	if(!dso)
+	{
+		printf("Operation mode request\n");
+		s.RequestOperationMode(DSLSession::OP_BUFFER);
+		string err3;
+		CHECK(s.Open(selector, mode, err3), "open with op=buffer");
+		s.Close();
+		CHECK(s.Open(selector, mode, err3), "request is not carried over to the next open");
+		s.Close();
+	}
+
 	printf("%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
 	return g_failures ? 1 : 0;
 }
