@@ -181,6 +181,27 @@ jobs:
           echo "hsdaoh-la compiled in:"
           strings "$dll" | grep -m1 -i "hsdaoh" || echo "  (no)"
 
+      - name: libusb version and WinUSB RAW_IO
+        run: |
+          set -e
+          dll=build/src/ngscopeclient/plugins/libscopehal-libsigrok4dsl.dll
+          pcver=$(pkg-config --modversion libusb-1.0)
+          api=$(grep -m1 "#define LIBUSB_API_VERSION" "$MINGW_PREFIX/include/libusb-1.0/libusb.h" | awk '{print $3}')
+          # the libusb-1.0.dll shipped next to ngscopeclient.exe
+          shipped=$(find build/src/ngscopeclient -maxdepth 1 -iname "libusb-1.0.dll" | head -1)
+          filever="(not found)"
+          if [ -n "$shipped" ]; then
+            filever=$(powershell.exe -NoProfile -Command "(Get-Item '$(cygpath -w "$shipped")').VersionInfo.FileVersion" | tr -d '\r')
+          fi
+          echo "::notice title=libusb::built against libusb $pcver (LIBUSB_API_VERSION $api); shipped libusb-1.0.dll version $filever"
+          # The SLogic driver turns RAW_IO on when built with LIBUSB_API_VERSION >= 0x0100010C (libusb 1.0.28)
+          if objdump -p "$dll" | grep -q "libusb_endpoint_set_raw_io"; then
+            echo "::notice title=RAW_IO::plugin imports libusb_endpoint_set_raw_io / libusb_get_max_raw_io_transfer_size: RAW_IO compiled in (SLogic bulk-IN)"
+          else
+            echo "::error title=RAW_IO::plugin does not import libusb_endpoint_set_raw_io: SLogic would run without RAW_IO"
+            exit 1
+          fi
+
       - name: Engine tests (libsigrok4DSL demo device)
         run: |
           set -e
