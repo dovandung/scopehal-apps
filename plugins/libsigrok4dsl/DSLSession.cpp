@@ -1156,7 +1156,17 @@ void DSLSession::AcquisitionThread()
 			if(done && done->error)
 			{
 				if(++failures % 50 == 1)
-					LogWarning("libsigrok4DSL: capture ended with an error\n");
+				{
+					if(done->overflow)
+					{
+						LogWarning("libsigrok4DSL: \"%s\" lost samples (USB too slow), capture discarded. "
+							"Lower the sample rate or enable fewer channels.\n", m_devName.c_str());
+					}
+					else
+						LogWarning("libsigrok4DSL: capture ended with an error\n");
+				}
+				if(done->overflow)
+					m_overflows++;
 				this_thread::sleep_for(chrono::milliseconds(20));
 			}
 			continue;
@@ -1343,6 +1353,14 @@ void DSLSession::OnDatafeed(const void* p)
 				if(m_oneShot)
 					m_stopAfterFrame = true;
 			}
+			break;
+
+		case SR_DF_OVERFLOW:
+			//The device lost samples (CH32H417: USB too slow, its ring buffers were overwritten;
+			//DSLogic: stream overflow). What arrives would look continuous with a hole in it,
+			//so the capture is discarded, as ALL-LOGIC does (it shows its overflow error).
+			c.error = true;
+			c.overflow = true;
 			break;
 
 		case SR_DF_END:

@@ -337,6 +337,52 @@ static void TestChannelModes(DSLSession& s, const string& selector, int mode)
 }
 
 /**
+	@brief SR_DF_OVERFLOW (device lost samples) discards the capture; acquisition goes on
+ */
+static void TestOverflow(DSLSession& s)
+{
+	printf("Overflow packet (SR_DF_OVERFLOW)\n");
+	s.SetSampleRate(10000000);
+	s.SetSampleDepth(1000000);
+	s.SetTrigger(0, DSLSession::EDGE_RISING, false);
+	uint64_t before = s.GetOverflowCount();
+
+	s.Start(false);
+	shared_ptr<DSLCapture> c;
+	WaitCapture(s, c);
+	while(s.PopCapture())
+		;
+
+	//Inject into whatever capture is running, as a driver would from the collect thread
+	sr_datafeed_packet pkt;
+	memset(&pkt, 0, sizeof(pkt));
+	pkt.type = SR_DF_OVERFLOW;
+	pkt.status = SR_PKT_OK;
+	auto until = chrono::steady_clock::now() + chrono::milliseconds(1500);
+	while(chrono::steady_clock::now() < until)
+	{
+		s.OnDatafeed(&pkt);
+		this_thread::sleep_for(chrono::milliseconds(1));
+	}
+	uint64_t overflows = s.GetOverflowCount() - before;
+
+	//Every capture that got the packet was dropped: anything published meanwhile must be
+	//one that finished between two injections, so at most a few
+	size_t publishedDuring = 0;
+	while(s.PopCapture())
+		publishedDuring++;
+	CHECK(overflows > 0, "%lu captures discarded on overflow", (unsigned long)overflows);
+
+	bool resumed = WaitCapture(s, c);
+	CHECK(resumed && !c->overflow, "captures continue after the overflow stops (%zu slipped through between injections)",
+		publishedDuring);
+	s.Stop();
+	while(s.PopCapture())
+		;
+	s.SetSampleDepth(100000);
+}
+
+/**
 	@brief fx3,channels=N is written where the FX3 driver reads it at scan time
  */
 static void TestFx3Preset()
@@ -429,6 +475,8 @@ int main(int argc, char* argv[])
 		TestDSO(s);
 	else
 		TestLogic(s);
+	if(!s.IsDSO())
+		TestOverflow(s);
 
 	s.Close();
 	string err2;

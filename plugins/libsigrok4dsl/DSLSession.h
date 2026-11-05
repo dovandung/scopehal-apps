@@ -72,6 +72,7 @@ struct DSLCapture
 	//Internal bookkeeping
 	bool complete = false;
 	bool error = false;
+	bool overflow = false;		//the device reported lost samples (SR_DF_OVERFLOW)
 	unsigned packets = 0;
 	uint64_t configGen = 0;
 };
@@ -248,6 +249,10 @@ public:
 	uint64_t GetDroppedCount() const
 	{ return m_dropped; }
 
+	///@brief Captures discarded because the device lost samples (SR_DF_OVERFLOW)
+	uint64_t GetOverflowCount() const
+	{ return m_overflows; }
+
 	//libsigrok4DSL callbacks (public so the C trampolines can reach them)
 	void OnEvent(int event);
 	void OnDatafeed(const void* packet);
@@ -306,6 +311,7 @@ protected:
 	std::deque<std::shared_ptr<DSLCapture>> m_ready;
 	static const size_t MAX_QUEUED = 2;
 	std::atomic<uint64_t> m_dropped{0};
+	std::atomic<uint64_t> m_overflows{0};
 
 	//Acquisition thread
 	std::thread m_thread;
